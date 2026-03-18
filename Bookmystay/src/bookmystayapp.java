@@ -2,68 +2,75 @@ import java.util.*;
 
 /**
  * ======================================================================
- * MAIN CLASS - bookmystayapp (Use Case 7)
+ * MAIN CLASS - bookmystayapp (Use Case 8)
  * ======================================================================
  *
- * Use Case 7: Add-On Service Selection
+ * Use Case 8: Booking History & Reporting
  *
- * Goal: Demonstrate business extensibility by mapping multiple optional
- * services to a reservation ID using Map<String, List<Service>>.
+ * Goal: Maintain a chronological record of confirmed bookings using a List,
+ * reinforcing a persistence-oriented mindset for auditing and reporting.
  *
  * @author Developer
- * @version 7.0
+ * @version 8.0
  */
 
-// --- Model for Add-On Services ---
-class Service {
-    private String name;
-    private double cost;
+// --- Model for a Confirmed Booking ---
+class ConfirmedBooking {
+    private String bookingId;
+    private String guestName;
+    private String roomType;
+    private double totalCost;
 
-    public Service(String name, double cost) {
-        this.name = name;
-        this.cost = cost;
+    public ConfirmedBooking(String bookingId, String guestName, String roomType, double totalCost) {
+        this.bookingId = bookingId;
+        this.guestName = guestName;
+        this.roomType = roomType;
+        this.totalCost = totalCost;
     }
-
-    public String getName() { return name; }
-    public double getCost() { return cost; }
 
     @Override
     public String toString() {
-        return name + " ($" + cost + ")";
+        return String.format("[%s] Guest: %-10s | Room: %-10s | Total: $%.2f",
+                bookingId, guestName, roomType, totalCost);
     }
+
+    public double getTotalCost() { return totalCost; }
 }
 
-// --- Add-On Service Manager ---
-class AddOnServiceManager {
-    // Maps Reservation ID to a List of selected Services (One-to-Many)
-    private Map<String, List<Service>> reservationServices = new HashMap<>();
+// --- Booking History & Reporting Service ---
+class BookingReportService {
+    // List stores bookings in chronological (insertion) order
+    private List<ConfirmedBooking> bookingHistory = new ArrayList<>();
 
     /**
-     * Associates a service with a specific reservation ID.
+     * Adds a newly confirmed reservation to the historical audit trail.
      */
-    public void addServiceToBooking(String bookingId, Service service) {
-        // If the ID is new, initialize a new ArrayList
-        reservationServices.computeIfAbsent(bookingId, k -> new ArrayList<>()).add(service);
-        System.out.println("Added " + service.getName() + " to Booking ID: " + bookingId);
+    public void recordBooking(ConfirmedBooking booking) {
+        bookingHistory.add(booking);
+        System.out.println("History Updated: " + booking);
     }
 
     /**
-     * Calculates the total cost of all add-ons for a specific reservation.
+     * Admin Tool: Generates a summary report of all transactions.
+     * This is a read-only operation on the historical data.
      */
-    public double calculateAddOnTotal(String bookingId) {
-        List<Service> services = reservationServices.get(bookingId);
-        if (services == null) return 0.0;
+    public void generateSummaryReport() {
+        System.out.println("\n--- ADMINISTRATIVE BOOKING REPORT ---");
+        if (bookingHistory.isEmpty()) {
+            System.out.println("No booking history found.");
+            return;
+        }
 
-        return services.stream().mapToDouble(Service::getCost).sum();
-    }
+        double totalRevenue = 0;
+        for (ConfirmedBooking b : bookingHistory) {
+            System.out.println(b);
+            totalRevenue += b.getTotalCost();
+        }
 
-    /**
-     * Displays all selected services for a reservation.
-     */
-    public void displayBookingServices(String bookingId) {
-        List<Service> services = reservationServices.getOrDefault(bookingId, Collections.emptyList());
-        System.out.println("Services for " + bookingId + ": " + services);
-        System.out.println("Total Add-On Cost: $" + calculateAddOnTotal(bookingId));
+        System.out.println("-------------------------------------");
+        System.out.println("Total Bookings: " + bookingHistory.size());
+        System.out.printf("Total Revenue:  $%.2f\n", totalRevenue);
+        System.out.println("-------------------------------------");
     }
 }
 
@@ -71,37 +78,24 @@ class AddOnServiceManager {
 public class bookmystayapp {
     public static void main(String[] args) {
         System.out.println("Welcome to bookmystayapp!");
-        System.out.println("Hotel Booking Management System v7.0");
+        System.out.println("Hotel Booking Management System v8.0");
         System.out.println("--------------------------------------------------");
 
-        // 1. Define available services
-        Service breakfast = new Service("Buffet Breakfast", 25.0);
-        Service wifi = new Service("High-Speed WiFi", 10.0);
-        Service spa = new Service("Spa Treatment", 50.0);
+        // 1. Initialize the History and Reporting Service
+        BookingReportService reportService = new BookingReportService();
 
-        // 2. Initialize the Add-On Service Manager
-        AddOnServiceManager serviceManager = new AddOnServiceManager();
+        // 2. Simulate the completion of various bookings
+        System.out.println("Action: Recording confirmed bookings to history...");
 
-        // 3. Simulate existing bookings (from Use Case 6)
-        String bookingId1 = "BK-1001";
-        String bookingId2 = "BK-1002";
+        reportService.recordBooking(new ConfirmedBooking("BK-501", "Alice", "Suite", 425.0));
+        reportService.recordBooking(new ConfirmedBooking("BK-502", "Bob", "Single", 110.0));
+        reportService.recordBooking(new ConfirmedBooking("BK-503", "Charlie", "Double", 215.0));
 
-        System.out.println("Action: Guests are selecting optional add-ons...");
+        // 3. Admin requests a report
+        System.out.println("\nAdmin is requesting the daily operations report...");
+        reportService.generateSummaryReport();
 
-        // Guest 1 selects Breakfast and WiFi
-        serviceManager.addServiceToBooking(bookingId1, breakfast);
-        serviceManager.addServiceToBooking(bookingId1, wifi);
-
-        // Guest 2 selects Spa
-        serviceManager.addServiceToBooking(bookingId2, spa);
-
-        // 4. Display Results
-        System.out.println("\n--- Final Billing Summary (Add-Ons Only) ---");
-        serviceManager.displayBookingServices(bookingId1);
-        System.out.println();
-        serviceManager.displayBookingServices(bookingId2);
-
+        System.out.println("Reporting and historical tracking completed.");
         System.out.println("--------------------------------------------------");
-        System.out.println("Add-on service selection logic completed.");
     }
 }
