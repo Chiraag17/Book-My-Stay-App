@@ -1,76 +1,65 @@
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * ======================================================================
- * MAIN CLASS - bookmystayapp (Use Case 8)
+ * MAIN CLASS - bookmystayapp (Use Case 9)
  * ======================================================================
  *
- * Use Case 8: Booking History & Reporting
+ * Use Case 9: Error Handling & Validation
  *
- * Goal: Maintain a chronological record of confirmed bookings using a List,
- * reinforcing a persistence-oriented mindset for auditing and reporting.
+ * Goal: Strengthen system reliability by introducing custom exceptions
+ * and fail-fast validation logic to protect the system state.
  *
  * @author Developer
- * @version 8.0
+ * @version 9.0
  */
 
-// --- Model for a Confirmed Booking ---
-class ConfirmedBooking {
-    private String bookingId;
-    private String guestName;
-    private String roomType;
-    private double totalCost;
-
-    public ConfirmedBooking(String bookingId, String guestName, String roomType, double totalCost) {
-        this.bookingId = bookingId;
-        this.guestName = guestName;
-        this.roomType = roomType;
-        this.totalCost = totalCost;
+// --- Custom Exception Classes ---
+class InvalidRoomTypeException extends Exception {
+    public InvalidRoomTypeException(String message) {
+        super(message);
     }
-
-    @Override
-    public String toString() {
-        return String.format("[%s] Guest: %-10s | Room: %-10s | Total: $%.2f",
-                bookingId, guestName, roomType, totalCost);
-    }
-
-    public double getTotalCost() { return totalCost; }
 }
 
-// --- Booking History & Reporting Service ---
-class BookingReportService {
-    // List stores bookings in chronological (insertion) order
-    private List<ConfirmedBooking> bookingHistory = new ArrayList<>();
+class InsufficientInventoryException extends Exception {
+    public InsufficientInventoryException(String message) {
+        super(message);
+    }
+}
 
-    /**
-     * Adds a newly confirmed reservation to the historical audit trail.
-     */
-    public void recordBooking(ConfirmedBooking booking) {
-        bookingHistory.add(booking);
-        System.out.println("History Updated: " + booking);
+// --- Validated Inventory Service ---
+class ValidatedInventoryService {
+    private Map<String, Integer> inventory = new HashMap<>();
+
+    public void addInventory(String type, int count) {
+        inventory.put(type, count);
     }
 
     /**
-     * Admin Tool: Generates a summary report of all transactions.
-     * This is a read-only operation on the historical data.
+     * Process Booking with Validation (Fail-Fast Design)
+     * @throws InvalidRoomTypeException if the room type does not exist.
+     * @throws InsufficientInventoryException if units are zero.
      */
-    public void generateSummaryReport() {
-        System.out.println("\n--- ADMINISTRATIVE BOOKING REPORT ---");
-        if (bookingHistory.isEmpty()) {
-            System.out.println("No booking history found.");
-            return;
+    public void validateAndBook(String type) throws InvalidRoomTypeException, InsufficientInventoryException {
+        // 1. Validate Room Type Existence
+        if (!inventory.containsKey(type)) {
+            throw new InvalidRoomTypeException("Error: Room type '" + type + "' does not exist in our system.");
         }
 
-        double totalRevenue = 0;
-        for (ConfirmedBooking b : bookingHistory) {
-            System.out.println(b);
-            totalRevenue += b.getTotalCost();
+        // 2. Validate Availability
+        int currentCount = inventory.get(type);
+        if (currentCount <= 0) {
+            throw new InsufficientInventoryException("Error: No available units for '" + type + "'.");
         }
 
-        System.out.println("-------------------------------------");
-        System.out.println("Total Bookings: " + bookingHistory.size());
-        System.out.printf("Total Revenue:  $%.2f\n", totalRevenue);
-        System.out.println("-------------------------------------");
+        // 3. Update State only after all validations pass
+        inventory.put(type, currentCount - 1);
+        System.out.println("Success: One '" + type + "' room booked successfully.");
+    }
+
+    public void displayStatus() {
+        System.out.println("Current Inventory State: " + inventory);
     }
 }
 
@@ -78,24 +67,40 @@ class BookingReportService {
 public class bookmystayapp {
     public static void main(String[] args) {
         System.out.println("Welcome to bookmystayapp!");
-        System.out.println("Hotel Booking Management System v8.0");
+        System.out.println("Hotel Booking Management System v9.0");
         System.out.println("--------------------------------------------------");
 
-        // 1. Initialize the History and Reporting Service
-        BookingReportService reportService = new BookingReportService();
+        ValidatedInventoryService service = new ValidatedInventoryService();
+        service.addInventory("Single", 1);
+        service.addInventory("Suite", 5);
 
-        // 2. Simulate the completion of various bookings
-        System.out.println("Action: Recording confirmed bookings to history...");
+        // Scenario 1: Valid Booking
+        processBookingRequest(service, "Suite");
 
-        reportService.recordBooking(new ConfirmedBooking("BK-501", "Alice", "Suite", 425.0));
-        reportService.recordBooking(new ConfirmedBooking("BK-502", "Bob", "Single", 110.0));
-        reportService.recordBooking(new ConfirmedBooking("BK-503", "Charlie", "Double", 215.0));
+        // Scenario 2: Invalid Room Type (Testing InvalidRoomTypeException)
+        processBookingRequest(service, "Penthouse");
 
-        // 3. Admin requests a report
-        System.out.println("\nAdmin is requesting the daily operations report...");
-        reportService.generateSummaryReport();
+        // Scenario 3: Out of Stock (Testing InsufficientInventoryException)
+        processBookingRequest(service, "Single"); // First one succeeds
+        processBookingRequest(service, "Single"); // Second one should fail
 
-        System.out.println("Reporting and historical tracking completed.");
-        System.out.println("--------------------------------------------------");
+        System.out.println("\n--------------------------------------------------");
+        service.displayStatus();
+        System.out.println("Validation and Error Handling Use Case completed.");
+    }
+
+    /**
+     * Helper method to handle exceptions gracefully without crashing the app.
+     */
+    private static void processBookingRequest(ValidatedInventoryService service, String roomType) {
+        try {
+            System.out.println("\nAttempting to book: " + roomType);
+            service.validateAndBook(roomType);
+        } catch (InvalidRoomTypeException | InsufficientInventoryException e) {
+            // Graceful Failure Handling: Log the error and continue
+            System.err.println("ALARM: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("An unexpected error occurred: " + e.getMessage());
+        }
     }
 }
