@@ -1,100 +1,121 @@
 import java.util.*;
+import java.util.concurrent.*;
 
-/**
- * ======================================================================
- * MAIN CLASS - bookmystayapp (Use Case 10)
- * ======================================================================
- *
- * Use Case 10: Booking Cancellation & Inventory Rollback
- *
- * Goal: Enable safe cancellation of bookings by reversing system state.
- * Uses a Stack to track released Room IDs, demonstrating LIFO rollback.
- *
- * @author Developer
- * @version 10.0
- */
+// ======================================================================
+// MAIN CLASS - bookmystayapp (Use Case 11)
+// ======================================================================
+//
+// Use Case 11: Concurrent Booking Simulation (Thread Safety)
+//
+// Goal: Demonstrate how concurrent access to shared resources can lead
+//       to inconsistent system state and show how synchronization ensures
+//       correctness under multi-user conditions.
+//
+// @author Developer
+// @version 11.0
+// ======================================================================
 
-// --- Cancellation Service & Inventory Manager ---
-class CancellationService {
+// --- Booking Request Object ---
+class BookingRequest {
+    String bookingId;
+    String roomType;
+
+    BookingRequest(String bookingId, String roomType) {
+        this.bookingId = bookingId;
+        this.roomType = roomType;
+    }
+}
+
+// --- Concurrent Booking Processor ---
+class ConcurrentBookingProcessor {
     private Map<String, Integer> inventory = new HashMap<>();
-    private Map<String, String> activeBookings = new HashMap<>(); // BookingID -> RoomType
+    private Map<String, String> confirmedBookings = new HashMap<>();
+    private Queue<BookingRequest> bookingQueue = new LinkedList<>();
 
-    // Stack tracks released Room IDs for potential reuse or auditing (LIFO)
-    private Stack<String> releasedRoomIds = new Stack<>();
-
+    // Initialize inventory
     public void setupInitialState(String type, int count) {
         inventory.put(type, count);
     }
 
-    public void addActiveBooking(String bookingId, String roomType) {
-        activeBookings.put(bookingId, roomType);
+    // Add booking request to queue
+    public void submitBookingRequest(BookingRequest request) {
+        synchronized (bookingQueue) {
+            bookingQueue.add(request);
+        }
     }
 
-    /**
-     * Performs a controlled rollback of a booking.
-     * 1. Validates existence. 2. Increments inventory. 3. Records released ID.
-     */
-    public void cancelBooking(String bookingId, String roomId) {
-        System.out.println("\nInitiating cancellation for: " + bookingId);
-
-        // Validation: Ensure the reservation exists
-        if (!activeBookings.containsKey(bookingId)) {
-            System.err.println("Error: Cancellation failed. Booking ID " + bookingId + " not found.");
-            return;
+    // Process booking requests safely
+    public void processRequests() {
+        while (true) {
+            BookingRequest request;
+            synchronized (bookingQueue) {
+                if (bookingQueue.isEmpty()) break;
+                request = bookingQueue.poll();
+            }
+            allocateRoom(request);
         }
+    }
 
-        // State Rollback Logic
-        String type = activeBookings.remove(bookingId);
-
-        // 1. Restore Inventory Count
-        inventory.put(type, inventory.get(type) + 1);
-
-        // 2. Push Room ID to Rollback Stack (LIFO)
-        releasedRoomIds.push(roomId);
-
-        System.out.println("Success: " + bookingId + " cancelled. " + type + " inventory restored.");
-        System.out.println("Room ID " + roomId + " has been returned to the pool.");
+    // Critical section: allocate room
+    private synchronized void allocateRoom(BookingRequest request) {
+        String type = request.roomType;
+        if (inventory.getOrDefault(type, 0) > 0) {
+            inventory.put(type, inventory.get(type) - 1);
+            confirmedBookings.put(request.bookingId, type);
+            System.out.println(Thread.currentThread().getName() +
+                    " -> Booking Confirmed: " + request.bookingId + " -> " + type);
+        } else {
+            System.err.println(Thread.currentThread().getName() +
+                    " -> Booking Failed: " + request.bookingId + " -> " + type + " (No inventory)");
+        }
     }
 
     public void displaySystemState() {
-        System.out.println("\n--- Current System State ---");
+        System.out.println("\n--- Final System State ---");
         System.out.println("Inventory: " + inventory);
-        System.out.println("Active Bookings: " + activeBookings.keySet());
-        System.out.println("Recently Released IDs (Stack Top first): " + releasedRoomIds);
-        System.out.println("----------------------------");
+        System.out.println("Confirmed Bookings: " + confirmedBookings.keySet());
+        System.out.println("--------------------------");
     }
 }
 
 // --- Main Application Entry Point ---
 public class bookmystayapp {
     public static void main(String[] args) {
-        System.out.println("Welcome to bookmystayapp!");
-        System.out.println("Hotel Booking Management System v10.0");
+        System.out.println("Welcome to Book My Stay App!");
+        System.out.println("Hotel Booking Management System v11.0");
         System.out.println("--------------------------------------------------");
 
-        CancellationService service = new CancellationService();
+        ConcurrentBookingProcessor processor = new ConcurrentBookingProcessor();
 
-        // 1. Setup initial state with some active bookings
-        service.setupInitialState("Single", 5);
-        service.setupInitialState("Suite", 2);
+        // Setup initial inventory
+        processor.setupInitialState("Single", 3);
+        processor.setupInitialState("Suite", 2);
 
-        service.addActiveBooking("BK-901", "Suite");
-        service.addActiveBooking("BK-902", "Single");
-        service.addActiveBooking("BK-903", "Suite");
+        // Simulate multiple guests submitting requests concurrently
+        ExecutorService executor = Executors.newFixedThreadPool(4);
 
-        System.out.println("Initial State: 3 active bookings, Suite inventory is low.");
-        service.displaySystemState();
+        // Submit booking requests
+        for (int i = 1; i <= 6; i++) {
+            String bookingId = "BK-" + (100 + i);
+            String roomType = (i % 2 == 0) ? "Suite" : "Single";
+            processor.submitBookingRequest(new BookingRequest(bookingId, roomType));
+        }
 
-        // 2. Perform valid cancellations
-        service.cancelBooking("BK-903", "Suite-882");
-        service.cancelBooking("BK-901", "Suite-104");
+        // Multiple threads process requests concurrently
+        for (int i = 0; i < 3; i++) {
+            executor.execute(() -> processor.processRequests());
+        }
 
-        // 3. Attempt an invalid cancellation (Defensive Check)
-        service.cancelBooking("BK-999", "Unknown-000");
+        executor.shutdown();
+        try {
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
-        // 4. Final State check
-        service.displaySystemState();
+        // Display final system state
+        processor.displaySystemState();
 
-        System.out.println("Cancellation and Rollback Use Case completed.");
+        System.out.println("Concurrent Booking Simulation completed.");
     }
 }
