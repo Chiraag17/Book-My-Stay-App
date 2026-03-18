@@ -1,81 +1,70 @@
-import java.util.HashMap;
-import java.util.Map;
+import java.util.LinkedList;
+import java.util.Queue;
 
 /**
  * ======================================================================
- * MAIN CLASS - bookmystayapp (Use Case 4)
+ * MAIN CLASS - bookmystayapp (Use Case 5)
  * ======================================================================
  *
- * Use Case 4: Room Search & Availability Check
+ * Use Case 5: Booking Request (First-Come-First-Served)
  *
- * Goal: Implement read-only search functionality to prevent unintended
- * state mutation during data access.
+ * Goal: Handle multiple booking requests fairly by introducing a
+ * request intake mechanism that preserves arrival order using a Queue.
  *
  * @author Developer
- * @version 4.0
+ * @version 5.0
  */
 
-// --- Domain Model ---
-abstract class Room {
-    private String type;
-    private double price;
+// --- Reservation Model ---
+class Reservation {
+    private String guestName;
+    private String roomType;
 
-    public Room(String type, double price) {
-        this.type = type;
-        this.price = price;
+    public Reservation(String guestName, String roomType) {
+        this.guestName = guestName;
+        this.roomType = roomType;
     }
 
-    public String getType() { return type; }
-    public double getPrice() { return price; }
-}
+    public String getGuestName() { return guestName; }
+    public String getRoomType() { return roomType; }
 
-class SingleRoom extends Room { public SingleRoom() { super("Single", 100.0); } }
-class DoubleRoom extends Room { public DoubleRoom() { super("Double", 180.0); } }
-class SuiteRoom extends Room { public SuiteRoom() { super("Suite", 350.0); } }
-
-// --- Inventory Management (State Holder) ---
-class RoomInventory {
-    private Map<String, Integer> inventory = new HashMap<>();
-
-    public void registerRoom(String type, int initialCount) {
-        inventory.put(type, initialCount);
-    }
-
-    /**
-     * Read-Only Access: Retrieves availability without modifying the map.
-     */
-    public int getAvailability(String type) {
-        return inventory.getOrDefault(type, 0);
+    @Override
+    public String toString() {
+        return "Reservation [Guest: " + guestName + ", Room Type: " + roomType + "]";
     }
 }
 
-// --- Search Service (Read-Only Access) ---
-class SearchService {
+// --- Booking Request Queue ---
+class BookingRequestQueue {
+    // FIFO Principle: Queue handles requests in the order they arrive
+    private Queue<Reservation> requestQueue;
+
+    public BookingRequestQueue() {
+        this.requestQueue = new LinkedList<>();
+    }
+
     /**
-     * Performs a search and displays only rooms with availability > 0.
-     * Demonstrates Defensive Programming and Separation of Concerns.
+     * Adds a guest's booking request to the queue.
+     * No inventory mutation occurs at this stage.
      */
-    public void searchAvailableRooms(Map<String, Room> roomMap, RoomInventory inventory) {
-        System.out.println("\n--- Available Rooms Search Results ---");
-        boolean roomsFound = false;
+    public void submitRequest(Reservation request) {
+        requestQueue.offer(request);
+        System.out.println("Enqueued: " + request.getGuestName() + " for " + request.getRoomType());
+    }
 
-        for (String type : roomMap.keySet()) {
-            int count = inventory.getAvailability(type);
-
-            // Validation Logic: Exclude unavailable room types
-            if (count > 0) {
-                Room room = roomMap.get(type);
-                System.out.println("Type: " + room.getType() +
-                        " | Price: $" + room.getPrice() +
-                        " | Units Available: " + count);
-                roomsFound = true;
+    /**
+     * Displays the current state of the queue to verify ordering.
+     */
+    public void displayQueue() {
+        System.out.println("\n--- Current Booking Request Queue (FIFO Order) ---");
+        if (requestQueue.isEmpty()) {
+            System.out.println("The queue is currently empty.");
+        } else {
+            for (Reservation res : requestQueue) {
+                System.out.println(res);
             }
         }
-
-        if (!roomsFound) {
-            System.out.println("Currently, no rooms are available.");
-        }
-        System.out.println("--------------------------------------");
+        System.out.println("--------------------------------------------------");
     }
 }
 
@@ -83,27 +72,24 @@ class SearchService {
 public class bookmystayapp {
     public static void main(String[] args) {
         System.out.println("Welcome to bookmystayapp!");
-        System.out.println("Hotel Booking Management System v4.0");
+        System.out.println("Hotel Booking Management System v5.0");
         System.out.println("--------------------------------------------------");
 
-        // 1. Setup Domain Objects
-        Map<String, Room> roomMap = new HashMap<>();
-        roomMap.put("Single", new SingleRoom());
-        roomMap.put("Double", new DoubleRoom());
-        roomMap.put("Suite", new SuiteRoom());
+        // 1. Initialize the Booking Request Queue
+        BookingRequestQueue bookingQueue = new BookingRequestQueue();
 
-        // 2. Initialize Inventory State
-        RoomInventory inventory = new RoomInventory();
-        inventory.registerRoom("Single", 8);
-        inventory.registerRoom("Double", 0); // Explicitly sold out for testing
-        inventory.registerRoom("Suite", 3);
+        // 2. Guests submit requests (Request Intake)
+        System.out.println("Action: Guests are submitting booking requests...");
 
-        // 3. Initiate Search Service (Read-Only Operation)
-        SearchService searchService = new SearchService();
-        System.out.println("Guest is searching for available rooms...");
-        searchService.searchAvailableRooms(roomMap, inventory);
+        bookingQueue.submitRequest(new Reservation("Alice", "Suite"));
+        bookingQueue.submitRequest(new Reservation("Bob", "Single"));
+        bookingQueue.submitRequest(new Reservation("Charlie", "Double"));
+        bookingQueue.submitRequest(new Reservation("Diana", "Suite"));
 
-        System.out.println("Search operation finished. No inventory was modified.");
+        // 3. Display the queue to confirm arrival order is preserved
+        bookingQueue.displayQueue();
+
+        System.out.println("Request intake completed. Ready for allocation processing.");
         System.out.println("--------------------------------------------------");
     }
 }
