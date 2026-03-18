@@ -1,21 +1,20 @@
-import java.util.LinkedList;
-import java.util.Queue;
+import java.util.*;
 
 /**
  * ======================================================================
- * MAIN CLASS - bookmystayapp (Use Case 5)
+ * MAIN CLASS - bookmystayapp (Use Case 6)
  * ======================================================================
  *
- * Use Case 5: Booking Request (First-Come-First-Served)
+ * Use Case 6: Reservation Confirmation & Room Allocation
  *
- * Goal: Handle multiple booking requests fairly by introducing a
- * request intake mechanism that preserves arrival order using a Queue.
+ * Goal: Process queued requests, generate unique Room IDs using a Set,
+ * and update inventory to prevent double-booking.
  *
  * @author Developer
- * @version 5.0
+ * @version 6.0
  */
 
-// --- Reservation Model ---
+// --- Domain Model ---
 class Reservation {
     private String guestName;
     private String roomType;
@@ -27,44 +26,64 @@ class Reservation {
 
     public String getGuestName() { return guestName; }
     public String getRoomType() { return roomType; }
+}
 
-    @Override
-    public String toString() {
-        return "Reservation [Guest: " + guestName + ", Room Type: " + roomType + "]";
+// --- Inventory Service ---
+class InventoryService {
+    private Map<String, Integer> inventory = new HashMap<>();
+    // Set ensures Room IDs are unique and never duplicated
+    private Set<String> allocatedRoomIds = new HashSet<>();
+
+    public void addInventory(String type, int count) {
+        inventory.put(type, count);
+    }
+
+    public boolean isAvailable(String type) {
+        return inventory.getOrDefault(type, 0) > 0;
+    }
+
+    public void allocateRoom(String type, String roomId) {
+        // Decrement inventory
+        inventory.put(type, inventory.get(type) - 1);
+        // Record unique Room ID
+        allocatedRoomIds.add(roomId);
+    }
+
+    public void displayStatus() {
+        System.out.println("\n--- Final System State ---");
+        System.out.println("Remaining Inventory: " + inventory);
+        System.out.println("Allocated Room IDs: " + allocatedRoomIds);
     }
 }
 
-// --- Booking Request Queue ---
-class BookingRequestQueue {
-    // FIFO Principle: Queue handles requests in the order they arrive
-    private Queue<Reservation> requestQueue;
+// --- Booking & Allocation Service ---
+class BookingService {
+    private InventoryService inventoryService;
 
-    public BookingRequestQueue() {
-        this.requestQueue = new LinkedList<>();
+    public BookingService(InventoryService inventoryService) {
+        this.inventoryService = inventoryService;
     }
 
-    /**
-     * Adds a guest's booking request to the queue.
-     * No inventory mutation occurs at this stage.
-     */
-    public void submitRequest(Reservation request) {
-        requestQueue.offer(request);
-        System.out.println("Enqueued: " + request.getGuestName() + " for " + request.getRoomType());
-    }
+    public void processRequests(Queue<Reservation> queue) {
+        System.out.println("\n--- Processing Booking Queue ---");
 
-    /**
-     * Displays the current state of the queue to verify ordering.
-     */
-    public void displayQueue() {
-        System.out.println("\n--- Current Booking Request Queue (FIFO Order) ---");
-        if (requestQueue.isEmpty()) {
-            System.out.println("The queue is currently empty.");
-        } else {
-            for (Reservation res : requestQueue) {
-                System.out.println(res);
+        while (!queue.isEmpty()) {
+            Reservation request = queue.poll(); // FIFO Dequeue
+            String type = request.getRoomType();
+
+            if (inventoryService.isAvailable(type)) {
+                // Generate a Unique Room ID (e.g., Suite-101)
+                String roomId = type + "-" + (100 + new Random().nextInt(900));
+
+                inventoryService.allocateRoom(type, roomId);
+
+                System.out.println("CONFIRMED: " + request.getGuestName() +
+                        " assigned to " + roomId);
+            } else {
+                System.out.println("DENIED: No " + type + " rooms available for " +
+                        request.getGuestName());
             }
         }
-        System.out.println("--------------------------------------------------");
     }
 }
 
@@ -72,24 +91,29 @@ class BookingRequestQueue {
 public class bookmystayapp {
     public static void main(String[] args) {
         System.out.println("Welcome to bookmystayapp!");
-        System.out.println("Hotel Booking Management System v5.0");
+        System.out.println("Hotel Booking Management System v6.0");
         System.out.println("--------------------------------------------------");
 
-        // 1. Initialize the Booking Request Queue
-        BookingRequestQueue bookingQueue = new BookingRequestQueue();
+        // 1. Setup Inventory
+        InventoryService inventory = new InventoryService();
+        inventory.addInventory("Single", 2);
+        inventory.addInventory("Suite", 1);
 
-        // 2. Guests submit requests (Request Intake)
-        System.out.println("Action: Guests are submitting booking requests...");
+        // 2. Setup Request Queue (Use Case 5 logic)
+        Queue<Reservation> requestQueue = new LinkedList<>();
+        requestQueue.offer(new Reservation("Alice", "Suite"));
+        requestQueue.offer(new Reservation("Bob", "Single"));
+        requestQueue.offer(new Reservation("Charlie", "Suite")); // Should be denied
+        requestQueue.offer(new Reservation("Diana", "Single"));
 
-        bookingQueue.submitRequest(new Reservation("Alice", "Suite"));
-        bookingQueue.submitRequest(new Reservation("Bob", "Single"));
-        bookingQueue.submitRequest(new Reservation("Charlie", "Double"));
-        bookingQueue.submitRequest(new Reservation("Diana", "Suite"));
+        // 3. Process Allocations
+        BookingService bookingService = new BookingService(inventory);
+        bookingService.processRequests(requestQueue);
 
-        // 3. Display the queue to confirm arrival order is preserved
-        bookingQueue.displayQueue();
+        // 4. Show final state
+        inventory.displayStatus();
 
-        System.out.println("Request intake completed. Ready for allocation processing.");
         System.out.println("--------------------------------------------------");
+        System.out.println("Allocation and synchronization completed.");
     }
 }
